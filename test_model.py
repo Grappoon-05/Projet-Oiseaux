@@ -8,14 +8,3 @@ import re
 import os
 import matplotlib
 import matplotlib.pyplot as plt
-
-device = "cpu"
-
-if torch.backends.mps.is_available():
-    device = "mps"
-elif torch.backends.xpu.is_available():
-    device = "xpu"
-else :
-    "cpu"
-    
-print(f"Appareil utilisé : {device}")
