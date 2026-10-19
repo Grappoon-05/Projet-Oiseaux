@@ -38,6 +38,8 @@ def device_config():
         device = torch.device("cuda") #NVIDIA GPU
     elif torch.backends.mps.is_available():
         device = torch.device("mps") #Apple Silicon GPU
+    elif torch.backends.xpu.is_available():
+        device = torch.device("xpu") #Intel  GPU
     else:
         device = torch.device("cpu") #CPU
     print(f"The device being used is the {device}, so the calculations will be sent to it")
