@@ -1,5 +1,4 @@
 from torch.utils.data import Dataset, DataLoader, random_split
-from gensim.models import KeyedVectors
 import torch.nn as nn
 import pandas as pd
 import numpy as np
@@ -8,6 +7,9 @@ import re
 import os
 import matplotlib
 import matplotlib.pyplot as plt
+from selection_device import device_config
+
+device = device_config
 
 model = torch.load("model", weights_only=False)
 model = model.to(device)
