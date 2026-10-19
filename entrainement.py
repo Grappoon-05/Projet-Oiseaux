@@ -1,28 +1,6 @@
-from torch.utils.data import Dataset, DataLoader, random_split 
-from gensim.models import KeyedVectors 
-import torch.nn as nn 
-import torch.nn.functional as F
-import torch.optim as optim
-import pandas as pd
-import numpy as np
-import torch
-import re
-import os
-
-class Classifier(nn.Module): #Implémentation du classifieur linéaire simple
-    def __init__(self, input_dim=..., hidden_dim=...): #dimensions des vecteurs
-        super().__init__() 
-        self.linear_stack = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(), #fonction d'activation
-            nn.Linear(hidden_dim, 1),
-            nn.Sigmoid() #fonction d'activation
-        )
-
-
 classifieur = Classifier()
 
-optimizer = torch.optim.Adam(Classifier.parameters(), lr=0.01)
+optimizer = torch.optim.Adam(classifieur.parameters(), lr=0.01)
 loss_ = nn.BCELoss()
 
 for epoch in range(10):
