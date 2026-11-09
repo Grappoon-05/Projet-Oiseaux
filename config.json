@@ -1,0 +1,25 @@
+{
+  "data": {
+    "dataset_root": "/Users/grappoon/Desktop/IUT/L2/S3/R3.14 - IA/projex/Oiseaux_data/Data_Hackaton",
+    "classes_json_path": "classes.json",
+    "img_size": [128, 128],
+    "train_split_ratio": 0.8,
+    "seed": 42
+  },
+  "training": {
+    "epochs": 10,
+    "batch_size": 32,
+    "learning_rate": 0.001
+  },
+  "model": {
+    "num_channels": 3,
+    "conv1_filters": 32,
+    "conv2_filters": 64,
+    "kernel_size": 3,
+    "padding": 1
+  },
+  "output": {
+    "weights_path": "baseline_cnn.pth",
+    "loss_plot_path": "loss_baseline.png"
+  }
+}
