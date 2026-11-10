@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from CNN_base import SimpleCNN, OiseauxDataset, get_target_classes, list_images, load_config
+from CNN_base import SimpleCNN, OiseauxDataset, get_target_classes, load_dataset_from_folder, load_config
 from select_device import device_config
 
 # ---------------------------------------------------------------------
@@ -22,33 +22,23 @@ out_cfg = CONFIG["output"]
 device = device_config()
 
 # ---------------------------------------------------------------------
-# 2. Chargement des données de test
+# 2. Chargement des données de test depuis le dossier test_dir
 # ---------------------------------------------------------------------
 classes_cibles = get_target_classes(data_cfg["classes_json_path"])
-paths, labels = list_images(data_cfg["dataset_root"], classes_cibles)
+test_paths, test_labels = load_dataset_from_folder(data_cfg["test_dir"], classes_cibles)
 
 img_size = tuple(data_cfg.get("img_size", [128, 128]))
 transform_test = transforms.Compose([
     transforms.Resize(img_size),
-    transforms.ToTensor()
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
-dataset = OiseauxDataset(paths, labels, transform=transform_test)
-
-# Même seed (42) et même ratio que dans CNN_base.py pour garantir les mêmes images de test
-split_ratio = data_cfg.get("train_split_ratio", 0.8)
-train_size = int(split_ratio * len(dataset))
-test_size = len(dataset) - train_size
-seed = data_cfg.get("seed", 42)
-
-train_dataset, test_dataset = random_split(
-    dataset, [train_size, test_size], generator=torch.Generator().manual_seed(seed)
-)
-
+test_dataset = OiseauxDataset(test_paths, test_labels, transform=transform_test)
 batch_size = train_cfg.get("batch_size", 32)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-print(f"\nNombre d'images de test : {len(test_dataset)} réparties sur {len(classes_cibles)} classes.")
+print(f"\nNombre d'images dans le dossier de test : {len(test_dataset)} réparties sur {len(classes_cibles)} classes.")
 
 # ---------------------------------------------------------------------
 # 3. Chargement du modèle entraîné
@@ -69,7 +59,6 @@ total = 0
 criterion = nn.CrossEntropyLoss()
 total_test_loss = 0.0
 
-# Pour analyse fine par classe
 class_correct = [0] * len(classes_cibles)
 class_total = [0] * len(classes_cibles)
 
@@ -93,13 +82,12 @@ avg_test_loss = total_test_loss / total
 accuracy = 100.0 * correct / total
 
 print("\n" + "=" * 50)
-print(f"RÉSULTATS DE L'ÉVALUATION SUR DATA_HACKATON (TEST)")
+print(f"RÉSULTATS DE L'ÉVALUATION SUR LE DOSSIER TEST")
 print("=" * 50)
 print(f"Perte moyenne (Test Loss) : {avg_test_loss:.4f}")
 print(f"Précision globale (Accuracy) : {accuracy:.2f}% ({correct}/{total} correctes)")
 print("=" * 50)
 
-# Détail par espèce
 print("\nPrécision par espèce :")
 for idx, name in enumerate(classes_cibles):
     if class_total[idx] > 0:
@@ -107,11 +95,13 @@ for idx, name in enumerate(classes_cibles):
         print(f"  - {name:25} : {acc_cls:6.2f}% ({class_correct[idx]}/{class_total[idx]})")
 
 # ---------------------------------------------------------------------
-# 5. Visualisation de quelques prédictions aléatoires
+# 5. Visualisation d'échantillons
 # ---------------------------------------------------------------------
 def imshow(img, title=""):
     img = img.cpu().numpy()
     img = np.transpose(img, (1, 2, 0))
+    # Dénormalisation pour affichage correct
+    img = img * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
     img = np.clip(img, 0.0, 1.0)
     plt.imshow(img)
     plt.title(title, fontsize=10)

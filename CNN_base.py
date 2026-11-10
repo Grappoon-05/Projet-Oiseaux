@@ -6,30 +6,29 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from PIL import Image
+
 from select_device import device_config
 
 # =====================================================================
-# 1. Chargement du fichier de configuration JSON
+# 1. Chargement de la configuration JSON et Device
 # =====================================================================
 def load_config(config_path="config.json"):
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 CONFIG = load_config("config.json")
-
-# Choix automatique du device (MPS sur Mac Apple Silicon, CUDA, ou CPU)
 device = device_config()
 
 # =====================================================================
-# 2. Architecture SimpleCNN paramétrée par la configuration
+# 2. Architecture SimpleCNN
 # =====================================================================
 class SimpleCNN(nn.Module):
     """
     CNN simple 'from scratch' pour la classification d'espèces d'oiseaux.
-    Les hyperparamètres sont lus depuis le config.json.
+    Architecture 3 blocs Conv2d + BatchNorm2d + ReLU + MaxPool2d + Dropout.
     """
     def __init__(self, num_classes=21, model_cfg=None):
         super(SimpleCNN, self).__init__()
@@ -39,24 +38,35 @@ class SimpleCNN(nn.Module):
         in_channels = model_cfg.get("num_channels", 3)
         c1 = model_cfg.get("conv1_filters", 32)
         c2 = model_cfg.get("conv2_filters", 64)
+        c3 = model_cfg.get("conv3_filters", 128)
         k = model_cfg.get("kernel_size", 3)
         p = model_cfg.get("padding", 1)
 
-        # Structure convolutive avec extraction de caractéristiques
         self.encoder = nn.Sequential(
+            # Bloc 1 (128x128 -> 64x64)
             nn.Conv2d(in_channels, c1, kernel_size=k, padding=p),
+            nn.BatchNorm2d(c1),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
+
+            # Bloc 2 (64x64 -> 32x32)
             nn.Conv2d(c1, c2, kernel_size=k, padding=p),
+            nn.BatchNorm2d(c2),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2)
+            nn.MaxPool2d(2, 2),
+
+            # Bloc 3 (32x32 -> 16x16)
+            nn.Conv2d(c2, c3, kernel_size=k, padding=p),
+            nn.BatchNorm2d(c3),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
         )
 
-        # Tête de classification vers le nombre de classes d'oiseaux
         self.classifier = nn.Sequential(
             nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(),
-            nn.Linear(c2, num_classes)
+            nn.Dropout(0.3),
+            nn.Linear(c3, num_classes)
         )
 
     def forward(self, x):
@@ -66,7 +76,7 @@ class SimpleCNN(nn.Module):
 
 
 # =====================================================================
-# 3. Chargement des données (Data_Hackaton + classes.json)
+# 3. Chargement des données par dossier
 # =====================================================================
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
@@ -86,9 +96,9 @@ def get_target_classes(classes_json_path):
     return sorted(list(set(target)))
 
 
-def list_images(root, target_classes):
-    """Parcourt le dossier pour les classes cibles comme dans load_dataset.py."""
-    root = Path(root)
+def load_dataset_from_folder(folder_path, target_classes):
+    """Charge les chemins et labels directement depuis un dossier."""
+    root = Path(folder_path)
     paths, labels = [], []
     class_to_idx = {name: idx for idx, name in enumerate(target_classes)}
 
@@ -122,17 +132,16 @@ class OiseauxDataset(Dataset):
 
 
 # =====================================================================
-# 4. Fonction d'entraînement
+# 4. Fonction d'entraînement (Train + Validation à chaque époque)
 # =====================================================================
-def train_model(model, train_loader, test_loader, criterion, optimizer, num_epochs=10, device=device):
-    """
-    Entraîne le modèle, affiche la loss et l'accuracy à chaque epoch.
-    """
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=15, device=device):
     model.to(device)
     print(f"\n--- Début de l'entraînement ({num_epochs} époques) ---")
 
     train_losses = []
-    test_losses = []
+    val_losses = []
+    best_val_loss = float("inf")
+    best_weights = None
 
     for epoch in range(1, num_epochs + 1):
         start_time = time.time()
@@ -156,103 +165,113 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, num_epoc
         epoch_train_loss = running_train_loss / len(train_loader.dataset)
         train_losses.append(epoch_train_loss)
 
-        # 2. Évaluation sur l'ensemble de test
+        # 2. Phase de validation (Évaluation du modèle pendant l'entraînement)
         model.eval()
-        running_test_loss = 0.0
+        running_val_loss = 0.0
         correct = 0
         total = 0
 
         with torch.no_grad():
-            for images, targets in test_loader:
+            for images, targets in val_loader:
                 images = images.to(device)
                 targets = targets.to(device)
 
                 outputs = model(images)
                 loss = criterion(outputs, targets)
-                running_test_loss += loss.item() * images.size(0)
+                running_val_loss += loss.item() * images.size(0)
 
                 _, predicted = outputs.max(1)
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
 
-        epoch_test_loss = running_test_loss / len(test_loader.dataset)
-        test_losses.append(epoch_test_loss)
-        accuracy = 100.0 * correct / total
+        epoch_val_loss = running_val_loss / len(val_loader.dataset)
+        val_losses.append(epoch_val_loss)
+        val_accuracy = 100.0 * correct / total
         elapsed = time.time() - start_time
 
-        print(f"Epoch [{epoch:02d}/{num_epochs:02d}] - "
-              f"Train Loss: {epoch_train_loss:.4f} - Test Loss: {epoch_test_loss:.4f} - "
-              f"Accuracy Test: {accuracy:.2f}% - Durée: {elapsed:.2f}s")
+        # Sauvegarde du meilleur modèle selon la validation
+        if epoch_val_loss < best_val_loss:
+            best_val_loss = epoch_val_loss
+            best_weights = model.state_dict().copy()
 
-    return model, train_losses, test_losses
+        print(f"Epoch [{epoch:02d}/{num_epochs:02d}] - "
+              f"Train Loss: {epoch_train_loss:.4f} - Val Loss: {epoch_val_loss:.4f} - "
+              f"Val Accuracy: {val_accuracy:.2f}% - Durée: {elapsed:.2f}s")
+
+    return model, best_weights, train_losses, val_losses
 
 
 # =====================================================================
-# 5. Exécution principale utilisant la configuration
+# 5. Exécution principale
 # =====================================================================
 if __name__ == '__main__':
     data_cfg = CONFIG["data"]
     train_cfg = CONFIG["training"]
     out_cfg = CONFIG["output"]
 
-    # 1. Classes et images
+    # 1. Classes cibles
     classes_cibles = get_target_classes(data_cfg["classes_json_path"])
     print(f"Nombre de classes cibles : {len(classes_cibles)}")
 
-    paths, labels = list_images(data_cfg["dataset_root"], classes_cibles)
-    print(f"Nombre total d'images chargées : {len(paths)}")
+    # 2. Chargement des dossiers physiques Train et Validation
+    train_paths, train_labels = load_dataset_from_folder(data_cfg["train_dir"], classes_cibles)
+    val_paths, val_labels = load_dataset_from_folder(data_cfg["val_dir"], classes_cibles)
 
-    # 2. Transformations d'images (taille issue de la config)
+    print(f"Images chargées - Train : {len(train_paths)} | Validation : {len(val_paths)}")
+
+    # 3. Transformations
     img_size = tuple(data_cfg.get("img_size", [128, 128]))
-    transform_img = transforms.Compose([
+    
+    transform_train = transforms.Compose([
         transforms.Resize(img_size),
-        transforms.ToTensor()
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+    
+    transform_val = transforms.Compose([
+        transforms.Resize(img_size),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # 3. Split Train / Test
-    dataset = OiseauxDataset(paths, labels, transform=transform_img)
-    split_ratio = data_cfg.get("train_split_ratio", 0.8)
-    train_size = int(split_ratio * len(dataset))
-    test_size = len(dataset) - train_size
-
-    seed = data_cfg.get("seed", 42)
-    train_dataset, test_dataset = random_split(
-        dataset, [train_size, test_size], generator=torch.Generator().manual_seed(seed)
-    )
+    train_dataset = OiseauxDataset(train_paths, train_labels, transform=transform_train)
+    val_dataset = OiseauxDataset(val_paths, val_labels, transform=transform_val)
 
     batch_size = train_cfg.get("batch_size", 32)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-    print(f"Images - Train: {len(train_dataset)}, Test: {len(test_dataset)}")
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     # 4. Modèle
     model = SimpleCNN(num_classes=len(classes_cibles), model_cfg=CONFIG["model"])
-    print("\nModèle instancié avec la configuration :")
+    print("\nModèle instancié :")
     print(model)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=train_cfg.get("learning_rate", 0.001))
 
     # 5. Entraînement
-    epochs = train_cfg.get("epochs", 10)
-    trained_model, train_losses, test_losses = train_model(
-        model, train_loader, test_loader, criterion, optimizer, num_epochs=epochs, device=device
+    epochs = train_cfg.get("epochs", 15)
+    trained_model, best_weights, train_losses, val_losses = train_model(
+        model, train_loader, val_loader, criterion, optimizer, num_epochs=epochs, device=device
     )
 
-    # 6. Sauvegarde des poids
+    # 6. Sauvegarde des meilleurs poids de validation
     weights_path = out_cfg.get("weights_path", "baseline_cnn.pth")
-    torch.save(trained_model.state_dict(), weights_path)
-    print(f"\nModèle sauvegardé dans '{weights_path}'.")
+    if best_weights is not None:
+        torch.save(best_weights, weights_path)
+        print(f"\nMeilleur modèle (selon la validation) sauvegardé dans '{weights_path}'.")
+    else:
+        torch.save(trained_model.state_dict(), weights_path)
 
-    # 7. Sauvegarde du graphique des pertes
+    # 7. Tracé des courbes de pertes Train vs Validation
     plot_path = out_cfg.get("loss_plot_path", "loss_baseline.png")
     plt.figure(figsize=(8, 5))
     plt.plot(range(1, epochs + 1), train_losses, label="Train Loss", color="blue")
-    plt.plot(range(1, epochs + 1), test_losses, label="Test Loss", color="orange")
+    plt.plot(range(1, epochs + 1), val_losses, label="Validation Loss", color="orange")
     plt.xlabel("Époques")
     plt.ylabel("Perte")
-    plt.title("Évolution des pertes (Baseline CNN)")
+    plt.title("Évolution des pertes (Train vs Validation)")
     plt.legend()
     plt.grid(True)
     plt.savefig(plot_path)
