@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms
 from PIL import Image
-from selection_device import device_config
+from select_device import device_config
 
 # =====================================================================
 # 1. Chargement du fichier de configuration JSON
