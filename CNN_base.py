@@ -28,7 +28,7 @@ device = device_config()
 # =====================================================================
 class SimpleCNN(nn.Module):
     """
-    CNN simple 'from scratch' pour la classification d'espèces d'oiseaux (TP3).
+    CNN simple 'from scratch' pour la classification d'espèces d'oiseaux.
     Les hyperparamètres sont lus depuis le config.json.
     """
     def __init__(self, num_classes=21, model_cfg=None):
@@ -42,7 +42,7 @@ class SimpleCNN(nn.Module):
         k = model_cfg.get("kernel_size", 3)
         p = model_cfg.get("padding", 1)
 
-        # Structure convolutive directe du TP3
+        # Structure convolutive avec extraction de caractéristiques
         self.encoder = nn.Sequential(
             nn.Conv2d(in_channels, c1, kernel_size=k, padding=p),
             nn.ReLU(),
@@ -122,7 +122,7 @@ class OiseauxDataset(Dataset):
 
 
 # =====================================================================
-# 4. Fonction d'entraînement (Structure du TP3)
+# 4. Fonction d'entraînement
 # =====================================================================
 def train_model(model, train_loader, test_loader, criterion, optimizer, num_epochs=10, device=device):
     """
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     plt.plot(range(1, epochs + 1), test_losses, label="Test Loss", color="orange")
     plt.xlabel("Époques")
     plt.ylabel("Perte")
-    plt.title("Évolution des pertes (Baseline TP3)")
+    plt.title("Évolution des pertes (Baseline CNN)")
     plt.legend()
     plt.grid(True)
     plt.savefig(plot_path)
