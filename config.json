@@ -4,12 +4,12 @@
     "val_dir": "./dataset_split/val",
     "test_dir": "./dataset_split/test",
     "classes_json_path": "classes.json",
-    "img_size": [128, 128]
+    "img_size": [224, 224]
   },
   "training": {
-    "epochs": 100,
+    "epochs": 15,
     "batch_size": 32,
-    "learning_rate": 0.001
+    "learning_rate": 0.0005
   },
   "model": {
     "num_channels": 3,
@@ -20,7 +20,7 @@
     "padding": 1
   },
   "output": {
-    "weights_path": "baseline_cnn.pth",
-    "loss_plot_path": "loss_baseline.png"
+    "weights_path": "resnet18_birds.pth",
+    "loss_plot_path": "loss_resnet18.png"
   }
 }
