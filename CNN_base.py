@@ -13,7 +13,7 @@ from PIL import Image
 from select_device import device_config
 
 # =====================================================================
-# 1. Chargement de la configuration JSON et Device
+# 1. Configuration et Device
 # =====================================================================
 def load_config(config_path="config.json"):
     with open(config_path, "r", encoding="utf-8") as f:
@@ -132,21 +132,16 @@ class OiseauxDataset(Dataset):
 
 
 # =====================================================================
-# 4. Fonction d'entraînement (Train + Validation à chaque époque)
+# 4. Fonction d'entraînement (uniquement sur Train)
 # =====================================================================
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=15, device=device):
+def train_model(model, train_loader, criterion, optimizer, num_epochs=15, device=device):
     model.to(device)
     print(f"\n--- Début de l'entraînement ({num_epochs} époques) ---")
 
     train_losses = []
-    val_losses = []
-    best_val_loss = float("inf")
-    best_weights = None
 
     for epoch in range(1, num_epochs + 1):
         start_time = time.time()
-
-        # 1. Phase d'entraînement
         model.train()
         running_train_loss = 0.0
 
@@ -164,41 +159,12 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
         epoch_train_loss = running_train_loss / len(train_loader.dataset)
         train_losses.append(epoch_train_loss)
-
-        # 2. Phase de validation (Évaluation du modèle pendant l'entraînement)
-        model.eval()
-        running_val_loss = 0.0
-        correct = 0
-        total = 0
-
-        with torch.no_grad():
-            for images, targets in val_loader:
-                images = images.to(device)
-                targets = targets.to(device)
-
-                outputs = model(images)
-                loss = criterion(outputs, targets)
-                running_val_loss += loss.item() * images.size(0)
-
-                _, predicted = outputs.max(1)
-                total += targets.size(0)
-                correct += predicted.eq(targets).sum().item()
-
-        epoch_val_loss = running_val_loss / len(val_loader.dataset)
-        val_losses.append(epoch_val_loss)
-        val_accuracy = 100.0 * correct / total
         elapsed = time.time() - start_time
 
-        # Sauvegarde du meilleur modèle selon la validation
-        if epoch_val_loss < best_val_loss:
-            best_val_loss = epoch_val_loss
-            best_weights = model.state_dict().copy()
-
         print(f"Epoch [{epoch:02d}/{num_epochs:02d}] - "
-              f"Train Loss: {epoch_train_loss:.4f} - Val Loss: {epoch_val_loss:.4f} - "
-              f"Val Accuracy: {val_accuracy:.2f}% - Durée: {elapsed:.2f}s")
+              f"Train Loss: {epoch_train_loss:.4f} - Durée: {elapsed:.2f}s")
 
-    return model, best_weights, train_losses, val_losses
+    return model, train_losses
 
 
 # =====================================================================
@@ -213,11 +179,9 @@ if __name__ == '__main__':
     classes_cibles = get_target_classes(data_cfg["classes_json_path"])
     print(f"Nombre de classes cibles : {len(classes_cibles)}")
 
-    # 2. Chargement des dossiers physiques Train et Validation
+    # 2. Chargement du dossier physique Train uniquement
     train_paths, train_labels = load_dataset_from_folder(data_cfg["train_dir"], classes_cibles)
-    val_paths, val_labels = load_dataset_from_folder(data_cfg["val_dir"], classes_cibles)
-
-    print(f"Images chargées - Train : {len(train_paths)} | Validation : {len(val_paths)}")
+    print(f"Images chargées - Train : {len(train_paths)}")
 
     # 3. Transformations
     img_size = tuple(data_cfg.get("img_size", [128, 128]))
@@ -228,19 +192,11 @@ if __name__ == '__main__':
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    
-    transform_val = transforms.Compose([
-        transforms.Resize(img_size),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
 
     train_dataset = OiseauxDataset(train_paths, train_labels, transform=transform_train)
-    val_dataset = OiseauxDataset(val_paths, val_labels, transform=transform_val)
 
     batch_size = train_cfg.get("batch_size", 32)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     # 4. Modèle
     model = SimpleCNN(num_classes=len(classes_cibles), model_cfg=CONFIG["model"])
@@ -252,26 +208,22 @@ if __name__ == '__main__':
 
     # 5. Entraînement
     epochs = train_cfg.get("epochs", 15)
-    trained_model, best_weights, train_losses, val_losses = train_model(
-        model, train_loader, val_loader, criterion, optimizer, num_epochs=epochs, device=device
+    trained_model, train_losses = train_model(
+        model, train_loader, criterion, optimizer, num_epochs=epochs, device=device
     )
 
-    # 6. Sauvegarde des meilleurs poids de validation
+    # 6. Sauvegarde des poids
     weights_path = out_cfg.get("weights_path", "baseline_cnn.pth")
-    if best_weights is not None:
-        torch.save(best_weights, weights_path)
-        print(f"\nMeilleur modèle (selon la validation) sauvegardé dans '{weights_path}'.")
-    else:
-        torch.save(trained_model.state_dict(), weights_path)
+    torch.save(trained_model.state_dict(), weights_path)
+    print(f"\nModèle entraîné sauvegardé dans '{weights_path}'.")
 
-    # 7. Tracé des courbes de pertes Train vs Validation
+    # 7. Tracé de la courbe de perte d'entraînement
     plot_path = out_cfg.get("loss_plot_path", "loss_baseline.png")
     plt.figure(figsize=(8, 5))
     plt.plot(range(1, epochs + 1), train_losses, label="Train Loss", color="blue")
-    plt.plot(range(1, epochs + 1), val_losses, label="Validation Loss", color="orange")
     plt.xlabel("Époques")
     plt.ylabel("Perte")
-    plt.title("Évolution des pertes (Train vs Validation)")
+    plt.title("Évolution de la perte d'entraînement (Train Loss)")
     plt.legend()
     plt.grid(True)
     plt.savefig(plot_path)
