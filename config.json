@@ -1,0 +1,26 @@
+{
+  "data": {
+    "train_dir": "./dataset_split/train",
+    "val_dir": "./dataset_split/val",
+    "test_dir": "./dataset_split/test",
+    "classes_json_path": "classes.json",
+    "img_size": [128, 128]
+  },
+  "training": {
+    "epochs": 100,
+    "batch_size": 32,
+    "learning_rate": 0.001
+  },
+  "model": {
+    "num_channels": 3,
+    "conv1_filters": 32,
+    "conv2_filters": 64,
+    "conv3_filters": 128,
+    "kernel_size": 3,
+    "padding": 1
+  },
+  "output": {
+    "weights_path": "baseline_cnn.pth",
+    "loss_plot_path": "loss_baseline.png"
+  }
+}
