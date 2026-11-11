@@ -1,3 +1,11 @@
+# Sources communautaires et documentation :
+# 1. PyTorch Dataset & DataLoader Workflow :
+#    https://pytorch.org/tutorials/beginner/basics/data_tutorial.html
+# 2. PyTorch Forums (Recommandation ImageFolder & DataLoader pour train/val séparés) :
+#    https://discuss.pytorch.org/t/how-to-use-imagefolder-with-a-generator-or-train-test-split/35227
+# 3. PyTorch Training Loop standard (Adam + CrossEntropyLoss) :
+#    https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
+
 import sys
 import json
 from pathlib import Path
@@ -10,50 +18,49 @@ from torchvision import models
 
 from select_device import device_config
 
-# Entraînement au format officiel demandé en Annexe A du sujet :
-# python train.py <racine des donnees> <dossier de sortie>
-
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
-def load_image(path):
+def charger_image(path):
     return Image.open(path).convert("RGB")
 
 
-def get_classes(classes_path="classes.json"):
-    with open(classes_path, "r", encoding="utf-8") as f:
-        raw = json.load(f)["classes"]
+def charger_classes(fichier_json="classes.json"):
+    with open(fichier_json, "r", encoding="utf-8") as f:
+        donnees = json.load(f)["classes"]
     classes = []
-    for c in raw:
+    for c in donnees:
         if c not in ("autre_oiseau", "rien", "incertain"):
             classes.append(c.strip().replace(" ", "_"))
     return sorted(list(set(classes)))
 
 
+# Implémentation classique d'un Dataset d'images par dossiers (pattern PyTorch Forums)
 class BirdDataset(Dataset):
     def __init__(self, root, classes, transform=None):
         self.root = Path(root)
         self.transform = transform
         self.paths = []
         self.labels = []
-        cls_to_idx = {name: i for i, name in enumerate(classes)}
+        classe_vers_index = {nom: i for i, nom in enumerate(classes)}
 
-        for name in classes:
-            folder = self.root / name
-            if not folder.is_dir():
+        for nom in classes:
+            dossier_classe = self.root / nom
+            if not dossier_classe.is_dir():
                 continue
-            for f in sorted(folder.iterdir()):
-                if f.suffix.lower() in IMAGE_EXTENSIONS:
-                    self.paths.append(f)
-                    self.labels.append(cls_to_idx[name])
+            for fichier in sorted(dossier_classe.iterdir()):
+                if fichier.suffix.lower() in IMAGE_EXTENSIONS:
+                    self.paths.append(fichier)
+                    self.labels.append(classe_vers_index[nom])
 
     def __len__(self):
         return len(self.paths)
 
-    def __getitem__(self, idx):
-        img = load_image(self.paths[idx])
+    def __getitem__(self, index):
+        image = charger_image(self.paths[index])
         if self.transform:
-            img = self.transform(img)
-        return img, self.labels[idx]
+            image = self.transform(image)
+        label = self.labels[index]
+        return image, label
 
 
 def train(data_root, output_dir, epochs=10, batch_size=32, lr=0.0005):
@@ -61,20 +68,22 @@ def train(data_root, output_dir, epochs=10, batch_size=32, lr=0.0005):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    device = device_config()
-    classes = get_classes("classes.json")
+    appareil = device_config()
+    classes = charger_classes("classes.json")
     print(f"Entraînement sur {len(classes)} classes")
 
-    # Modèle ResNet18 exactement comme dans le sujet (page 5) :
-    # models.ResNet18_Weights.DEFAULT.transforms()
+    # Transformations recommandées par torchvision.models pour ResNet18
+    # Source : https://pytorch.org/vision/stable/models.html
     poids = models.ResNet18_Weights.DEFAULT
-    transform = poids.transforms()
+    transformations = poids.transforms()
 
+    # Pattern Transfer Learning classique (Forum PyTorch / Tutoriel officiel)
     modele = models.resnet18(weights=poids)
-    modele.fc = torch.nn.Linear(modele.fc.in_features, len(classes))
-    modele = modele.to(device)
+    nb_features = modele.fc.in_features
+    modele.fc = nn.Linear(nb_features, len(classes))
+    modele = modele.to(appareil)
 
-    dataset = BirdDataset(data_root, classes, transform=transform)
+    dataset = BirdDataset(data_root, classes, transform=transformations)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     print(f"Images chargées : {len(dataset)}")
 
@@ -83,37 +92,32 @@ def train(data_root, output_dir, epochs=10, batch_size=32, lr=0.0005):
 
     modele.train()
     for epoch in range(1, epochs + 1):
-        running_loss = 0.0
-        for images, targets in loader:
-            images = images.to(device)
-            targets = targets.to(device)
+        perte_cumulee = 0.0
+        for images, cibles in loader:
+            images = images.to(appareil)
+            cibles = cibles.to(appareil)
 
             optimizer.zero_grad()
-            outputs = modele(images)
-            loss = criterion(outputs, targets)
-            loss.backward()
+            sorties = modele(images)
+            perte = criterion(sorties, cibles)
+            perte.backward()
             optimizer.step()
 
-            running_loss += loss.item() * images.size(0)
+            perte_cumulee += perte.item() * images.size(0)
 
-        epoch_loss = running_loss / len(dataset)
-        print(f"Époque [{epoch:02d}/{epochs:02d}] - Perte: {epoch_loss:.4f}")
+        perte_moyenne = perte_cumulee / len(dataset)
+        print(f"Époque [{epoch:02d}/{epochs:02d}] - Perte: {perte_moyenne:.4f}")
 
-    # Sauvegarde des poids finaux
-    save_path = output_dir / "model_weights.pth"
-    torch.save(modele.state_dict(), save_path)
-    print(f"Modèle sauvegardé dans : {save_path}")
+    # Sauvegarde des poids
+    chemin_modele = output_dir / "model_weights.pth"
+    torch.save(modele.state_dict(), chemin_modele)
+    print(f"Modèle sauvegardé dans : {chemin_modele}")
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        # Valeurs par défaut pratiques si lancé sans arguments
         print("Usage: python train.py <racine des donnees> <dossier de sortie>")
-        print("Exécution avec dossiers par défaut (dataset_split/train vers ./output)...")
-        data_dir = "./dataset_split/train"
-        out_dir = "./output"
+        print("Lancement par défaut : ./dataset_split/train vers ./output ...")
+        train("./dataset_split/train", "./output")
     else:
-        data_dir = sys.argv[1]
-        out_dir = sys.argv[2]
-
-    train(data_dir, out_dir)
+        train(sys.argv[1], sys.argv[2])
