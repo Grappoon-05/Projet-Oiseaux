@@ -4,3 +4,4 @@ Oiseaux_Laurens/
 dataset_split/
 *.pth
 *.png
+dataset_cropped/
