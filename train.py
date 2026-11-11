@@ -1,11 +1,3 @@
-# Sources communautaires et documentation :
-# 1. PyTorch Dataset & DataLoader Workflow :
-#    https://pytorch.org/tutorials/beginner/basics/data_tutorial.html
-# 2. PyTorch Forums (Recommandation ImageFolder & DataLoader pour train/val séparés) :
-#    https://discuss.pytorch.org/t/how-to-use-imagefolder-with-a-generator-or-train-test-split/35227
-# 3. PyTorch Training Loop standard (Adam + CrossEntropyLoss) :
-#    https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
-
 import sys
 import json
 from pathlib import Path
@@ -34,7 +26,7 @@ def charger_classes(fichier_json="classes.json"):
     return sorted(list(set(classes)))
 
 
-# Implémentation classique d'un Dataset d'images par dossiers (pattern PyTorch Forums)
+# Dataset pour charger les images depuis les dossiers d'espèces
 class BirdDataset(Dataset):
     def __init__(self, root, classes, transform=None):
         self.root = Path(root)
@@ -72,12 +64,11 @@ def train(data_root, output_dir, epochs=10, batch_size=32, lr=0.0005):
     classes = charger_classes("classes.json")
     print(f"Entraînement sur {len(classes)} classes")
 
-    # Transformations recommandées par torchvision.models pour ResNet18
-    # Source : https://pytorch.org/vision/stable/models.html
+    # Transformations officielles pour ResNet18
     poids = models.ResNet18_Weights.DEFAULT
     transformations = poids.transforms()
 
-    # Pattern Transfer Learning classique (Forum PyTorch / Tutoriel officiel)
+    # Modèle ResNet18 pré-entraîné adapté aux classes d'oiseaux
     modele = models.resnet18(weights=poids)
     nb_features = modele.fc.in_features
     modele.fc = nn.Linear(nb_features, len(classes))

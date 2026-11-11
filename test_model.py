@@ -1,9 +1,3 @@
-# Source d'inspiration pour le rapport de métriques :
-# Documentation officielle scikit-learn classification_report & confusion_matrix :
-# https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html
-# Forum PyTorch Discuss sur le calcul de la matrice de confusion :
-# https://discuss.pytorch.org/t/how-to-plot-confusion-matrix-with-matplotlib/70163
-
 import json
 import random
 from pathlib import Path
@@ -98,8 +92,7 @@ print(f"Perte moyenne (Test Loss)   : {perte_moyenne:.4f}")
 print(f"Précision globale (Accuracy) : {accuracy_globale:.2f}%")
 print("=" * 60)
 
-# Rapport détaillé Sklearn (Precision, Recall, F1-Score par espèce)
-# Utile pour l'analyse d'erreurs du rapport
+# Rapport détaillé Sklearn
 print("\nRapport détaillé par espèce (Précision, Rappel, F1-Score) :\n")
 print(classification_report(
     toutes_les_cibles,
@@ -110,7 +103,7 @@ print(classification_report(
 ))
 
 # ---------------------------------------------------------------------
-# 5. Matrice de Confusion (Sauvegarde graphique pour le rapport)
+# 5. Matrice de Confusion
 # ---------------------------------------------------------------------
 cm = confusion_matrix(toutes_les_cibles, toutes_les_predictions)
 

@@ -1,10 +1,3 @@
-# Sources d'inspiration et patterns de code :
-# 1. Ultralytics YOLO Crop & Prediction :
-#    https://github.com/ultralytics/ultralytics/issues/2422 (Discussion sur box.xyxy et crop d'objets)
-# 2. PyTorch Softmax / Argmax for Confidence Score :
-#    https://discuss.pytorch.org/t/how-to-get-probability-of-prediction/124231
-# 3. Format CSV de l'Annexe A du sujet (image_id, sequence_id, label, confidence)
-
 import sys
 import csv
 import json
@@ -36,7 +29,7 @@ def predict(input_folder, output_folder, weights_path="resnet18_birds.pth", yolo
     appareil = device_config()
     classes = charger_classes("classes.json")
 
-    # Prétraitement ImageNet officiel pour ResNet18
+    # Prétraitement ImageNet pour ResNet18
     poids = models.ResNet18_Weights.DEFAULT
     transforms_resnet = poids.transforms()
 
@@ -83,24 +76,23 @@ def predict(input_folder, output_folder, weights_path="resnet18_birds.pth", yolo
 
         for i, chemin_img in enumerate(images, start=1):
             image_id = chemin_img.stem
-            sequence_id = "0"  # valeur par défaut de passage
+            sequence_id = "0"
 
             img_pil = Image.open(chemin_img).convert("RGB")
             crop_cible = img_pil
             oiseau_trouve = True
 
-            # Étape détection YOLO (pattern Ultralytics GitHub Issue #2422)
+            # Détection YOLO
             if detecteur_yolo is not None:
                 res = detecteur_yolo(str(chemin_img), classes=[14], verbose=False)[0]
                 if res.boxes is not None and len(res.boxes) > 0:
-                    # Extraction des coordonnées de la boîte la plus confiante
                     idx_max = int(res.boxes.conf.argmax())
                     x1, y1, x2, y2 = res.boxes.xyxy[idx_max].tolist()
                     crop_cible = img_pil.crop((x1, y1, x2, y2))
                 else:
                     oiseau_trouve = False
 
-            # Gestion de l'absence d'oiseau sur le piège photo (règle page 6 du sujet)
+            # Gestion de l'absence d'oiseau
             if not oiseau_trouve:
                 label_final = "rien"
                 conf_finale = 0.95
@@ -109,7 +101,6 @@ def predict(input_folder, output_folder, weights_path="resnet18_birds.pth", yolo
                 tensor = transforms_resnet(crop_cible).unsqueeze(0).to(appareil)
                 with torch.no_grad():
                     logits = modele(tensor)
-                    # Calcul de la probabilité avec softmax (Pattern forum PyTorch)
                     probas = torch.softmax(logits, dim=1)
                     score_max, idx_classe = probas.max(dim=1)
 

@@ -1,7 +1,3 @@
-# Source d'inspiration pour le rapport de métriques :
-# Documentation officielle scikit-learn classification_report & confusion_matrix :
-# https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html
-
 import json
 import random
 from pathlib import Path
@@ -109,7 +105,7 @@ print(classification_report(
 ))
 
 # ---------------------------------------------------------------------
-# 5. Matrice de Confusion (Sauvegarde graphique)
+# 5. Matrice de Confusion
 # ---------------------------------------------------------------------
 cm = confusion_matrix(toutes_les_cibles, toutes_les_predictions)
 
