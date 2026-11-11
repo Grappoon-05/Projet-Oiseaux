@@ -5,194 +5,118 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from torchvision import transforms, models
-from PIL import Image
 
+from CNN_base import OiseauxDataset, recup_classes, lister_images, charger_config
 from select_device import device_config
 
-# =====================================================================
-# 1. Configuration et Device (Comme dans CNN_base.py)
-# =====================================================================
-def load_config(config_path="config.json"):
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+# Configuration et appareil
+config = charger_config("config.json")
+data_cfg = config["data"]
+train_cfg = config["training"]
+out_cfg = config["output"]
 
-CONFIG = load_config("config.json")
-device = device_config()
+appareil = device_config()
 
-# =====================================================================
-# 2. Modèle ResNet18 avec Transfer Learning (Étape 2)
-# =====================================================================
-def get_resnet_model(num_classes=21):
-    """
-    Charge ResNet18 pré-entraîné sur ImageNet et remplace la dernière
-    couche fully-connected (fc) pour prédire nos espèces d'oiseaux.
-    """
-    # 1. Télécharge les poids pré-entraînés par défaut sur ImageNet
-    weights = models.ResNet18_Weights.DEFAULT
-    model = models.resnet18(weights=weights)
+# Modèle ResNet18 avec Transfer Learning
+def creer_modele_resnet(nb_classes=21):
+    # 1. On charge le ResNet18 pré-entraîné sur la base ImageNet
+    poids = models.ResNet18_Weights.DEFAULT
+    modele = models.resnet18(weights=poids)
 
-    # 2. On remplace la dernière couche fc (1000 sorties ImageNet -> 21 espèces)
-    in_features = model.fc.in_features
-    model.fc = nn.Linear(in_features, num_classes)
+    # 2. On remplace la dernière couche linéaire pour qu'elle sorte nos 21 espèces d'oiseaux
+    nb_entrees_fc = modele.fc.in_features
+    modele.fc = nn.Linear(nb_entrees_fc, nb_classes)
 
-    return model
+    return modele
 
 
-# =====================================================================
-# 3. Chargement des données (Identique à CNN_base.py)
-# =====================================================================
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+# Fonction d'entraînement pour ResNet18
+def entrainer_resnet(modele, train_loader, criterion, optimizer, nb_epochs=15, device=appareil):
+    modele.to(device)
+    print(f"\n--- Début de l'entraînement ResNet18 ({nb_epochs} époques) ---")
 
-def load_image(path):
-    return Image.open(path).convert("RGB")
+    pertes_train = []
 
+    for epoch in range(1, nb_epochs + 1):
+        temps_debut = time.time()
+        modele.train()
+        perte_totale = 0.0
 
-def get_target_classes(classes_json_path):
-    """Lit classes.json et filtre sur les espèces réelles."""
-    with open(classes_json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)["classes"]
-
-    target = []
-    for c in data:
-        if c not in ("autre_oiseau", "rien", "incertain"):
-            target.append(c.strip().replace(" ", "_"))
-    return sorted(list(set(target)))
-
-
-def load_dataset_from_folder(folder_path, target_classes):
-    """Charge les chemins et labels directement depuis un dossier."""
-    root = Path(folder_path)
-    paths, labels = [], []
-    class_to_idx = {name: idx for idx, name in enumerate(target_classes)}
-
-    for class_name in target_classes:
-        class_dir = root / class_name
-        if not class_dir.is_dir():
-            continue
-
-        for file in sorted(class_dir.iterdir()):
-            if file.suffix.lower() in IMAGE_EXTENSIONS:
-                paths.append(file)
-                labels.append(class_to_idx[class_name])
-
-    return paths, labels
-
-
-class OiseauxDataset(Dataset):
-    def __init__(self, paths, labels, transform=None):
-        self.paths = paths
-        self.labels = labels
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.paths)
-
-    def __getitem__(self, idx):
-        image = load_image(self.paths[idx])
-        if self.transform:
-            image = self.transform(image)
-        return image, self.labels[idx]
-
-
-# =====================================================================
-# 4. Fonction d'entraînement (Identique à CNN_base.py)
-# =====================================================================
-def train_model(model, train_loader, criterion, optimizer, num_epochs=15, device=device):
-    model.to(device)
-    print(f"\n--- Début de l'entraînement ResNet18 ({num_epochs} époques) ---")
-
-    train_losses = []
-
-    for epoch in range(1, num_epochs + 1):
-        start_time = time.time()
-        model.train()
-        running_train_loss = 0.0
-
-        for images, targets in train_loader:
+        for images, cibles in train_loader:
             images = images.to(device)
-            targets = targets.to(device)
+            cibles = cibles.to(device)
 
             optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, targets)
-            loss.backward()
+            predictions = modele(images)
+            perte = criterion(predictions, cibles)
+            perte.backward()
             optimizer.step()
 
-            running_train_loss += loss.item() * images.size(0)
+            perte_totale += perte.item() * images.size(0)
 
-        epoch_train_loss = running_train_loss / len(train_loader.dataset)
-        train_losses.append(epoch_train_loss)
-        elapsed = time.time() - start_time
+        perte_moyenne = perte_totale / len(train_loader.dataset)
+        pertes_train.append(perte_moyenne)
+        duree = time.time() - temps_debut
 
-        print(f"Epoch [{epoch:02d}/{num_epochs:02d}] - "
-              f"Train Loss: {epoch_train_loss:.4f} - Durée: {elapsed:.2f}s")
+        print(f"Époque [{epoch:02d}/{nb_epochs:02d}] - Perte train: {perte_moyenne:.4f} - Temps: {duree:.2f}s")
 
-    return model, train_losses
+    return modele, pertes_train
 
 
-# =====================================================================
-# 5. Exécution principale
-# =====================================================================
 if __name__ == '__main__':
-    data_cfg = CONFIG["data"]
-    train_cfg = CONFIG["training"]
-    out_cfg = CONFIG["output"]
-
     # 1. Classes cibles
-    classes_cibles = get_target_classes(data_cfg["classes_json_path"])
-    print(f"Nombre de classes cibles : {len(classes_cibles)}")
+    classes_cibles = recup_classes(data_cfg["classes_json_path"])
+    print(f"Nombre d'espèces cibles : {len(classes_cibles)}")
 
-    # 2. Chargement du dossier physique Train
-    train_paths, train_labels = load_dataset_from_folder(data_cfg["train_dir"], classes_cibles)
-    print(f"Images chargées - Train : {len(train_paths)}")
+    # 2. Chargement des images du train
+    chemins_train, labels_train = lister_images(data_cfg["train_dir"], classes_cibles)
+    print(f"Nombre d'images pour le train : {len(chemins_train)}")
 
-    # 3. Transformations adaptées à ImageNet (224x224)
-    # Étape 2.2 : Redimensionnement 224x224 et normalisation ImageNet
-    img_size = tuple(data_cfg.get("img_size", [224, 224]))
-
+    # 3. Transformations adaptées à ImageNet (224x224 pixels)
+    taille_img = tuple(data_cfg.get("img_size", [224, 224]))
     transform_train = transforms.Compose([
-        transforms.Resize(img_size),
+        transforms.Resize(taille_img),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    train_dataset = OiseauxDataset(train_paths, train_labels, transform=transform_train)
-
+    dataset_train = OiseauxDataset(chemins_train, labels_train, transform=transform_train)
     batch_size = train_cfg.get("batch_size", 32)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True)
 
-    # 4. Instanciation du ResNet18 pré-entraîné (Étape 2.3)
-    model = get_resnet_model(num_classes=len(classes_cibles))
-    print("\nModèle ResNet18 instancié avec Transfer Learning :")
-    print(f"Dernière couche fc adaptée : {model.fc}")
+    # 4. Création du modèle ResNet18
+    modele = creer_modele_resnet(nb_classes=len(classes_cibles))
+    print("\nModèle ResNet18 prêt avec la couche finale adaptée :")
+    print(modele.fc)
 
+    # Fonction de perte et optimiseur
     criterion = nn.CrossEntropyLoss()
-    # Learning rate un peu plus doux (0.0005) pour ne pas détruire les poids pré-entraînés
-    learning_rate = train_cfg.get("learning_rate", 0.0005)
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    # Learning rate un peu plus faible pour préserver les poids ImageNet pré-entraînés
+    lr = train_cfg.get("learning_rate", 0.0005)
+    optimizer = optim.Adam(modele.parameters(), lr=lr)
 
     # 5. Entraînement
-    epochs = train_cfg.get("epochs", 15)
-    trained_model, train_losses = train_model(
-        model, train_loader, criterion, optimizer, num_epochs=epochs, device=device
+    nb_epochs = train_cfg.get("epochs", 15)
+    modele_entraine, historique_pertes = entrainer_resnet(
+        modele, train_loader, criterion, optimizer, nb_epochs=nb_epochs, device=appareil
     )
 
-    # 6. Sauvegarde des poids ResNet18
-    weights_path = out_cfg.get("weights_path", "resnet18_birds.pth")
-    torch.save(trained_model.state_dict(), weights_path)
-    print(f"\nModèle ResNet18 sauvegardé dans '{weights_path}'.")
+    # 6. Sauvegarde des poids
+    fichier_poids = out_cfg.get("weights_path", "resnet18_birds.pth")
+    torch.save(modele_entraine.state_dict(), fichier_poids)
+    print(f"\nModèle ResNet18 enregistré dans : {fichier_poids}")
 
-    # 7. Tracé de la courbe de perte
-    plot_path = out_cfg.get("loss_plot_path", "loss_resnet18.png")
+    # 7. Courbe de perte
+    fichier_plot = out_cfg.get("loss_plot_path", "loss_resnet18.png")
     plt.figure(figsize=(8, 5))
-    plt.plot(range(1, epochs + 1), train_losses, label="Train Loss (ResNet18)", color="blue")
-    plt.xlabel("Époques")
+    plt.plot(range(1, nb_epochs + 1), historique_pertes, label="Perte train ResNet18", color="blue")
+    plt.xlabel("Époque")
     plt.ylabel("Perte")
-    plt.title("Évolution de la perte d'entraînement (ResNet18)")
+    plt.title("Courbe d'apprentissage - ResNet18")
     plt.legend()
     plt.grid(True)
-    plt.savefig(plot_path)
-    print(f"Graphique sauvegardé dans '{plot_path}'.")
+    plt.savefig(fichier_plot)
+    print(f"Graphique de perte enregistré dans : {fichier_plot}")

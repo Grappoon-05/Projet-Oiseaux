@@ -1,7 +1,6 @@
 import time
 from pathlib import Path
 import json
-import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
@@ -12,219 +11,209 @@ from PIL import Image
 
 from select_device import device_config
 
-# =====================================================================
-# 1. Configuration et Device
-# =====================================================================
-def load_config(config_path="config.json"):
-    with open(config_path, "r", encoding="utf-8") as f:
+# On charge le fichier de configuration json
+def charger_config(nom_fichier="config.json"):
+    with open(nom_fichier, "r", encoding="utf-8") as f:
         return json.load(f)
 
-CONFIG = load_config("config.json")
-device = device_config()
+config = charger_config("config.json")
+appareil = device_config()
 
-# =====================================================================
-# 2. Architecture SimpleCNN
-# =====================================================================
+# Modèle CNN simple fait maison pour la baseline
 class SimpleCNN(nn.Module):
-    """
-    CNN simple 'from scratch' pour la classification d'espèces d'oiseaux.
-    Architecture 3 blocs Conv2d + BatchNorm2d + ReLU + MaxPool2d + Dropout.
-    """
-    def __init__(self, num_classes=21, model_cfg=None):
+    def __init__(self, nb_classes=21, cfg_modele=None):
         super(SimpleCNN, self).__init__()
-        if model_cfg is None:
-            model_cfg = CONFIG["model"]
+        if cfg_modele is None:
+            cfg_modele = config["model"]
 
-        in_channels = model_cfg.get("num_channels", 3)
-        c1 = model_cfg.get("conv1_filters", 32)
-        c2 = model_cfg.get("conv2_filters", 64)
-        c3 = model_cfg.get("conv3_filters", 128)
-        k = model_cfg.get("kernel_size", 3)
-        p = model_cfg.get("padding", 1)
+        nb_canaux = cfg_modele.get("num_channels", 3)
+        filtres1 = cfg_modele.get("conv1_filters", 32)
+        filtres2 = cfg_modele.get("conv2_filters", 64)
+        filtres3 = cfg_modele.get("conv3_filters", 128)
+        taille_noyau = cfg_modele.get("kernel_size", 3)
+        padding = cfg_modele.get("padding", 1)
 
-        self.encoder = nn.Sequential(
-            # Bloc 1 (128x128 -> 64x64)
-            nn.Conv2d(in_channels, c1, kernel_size=k, padding=p),
-            nn.BatchNorm2d(c1),
+        # Partie convolution (extraction des formes, contours, textures)
+        self.convolutions = nn.Sequential(
+            # Bloc 1
+            nn.Conv2d(nb_canaux, filtres1, kernel_size=taille_noyau, padding=padding),
+            nn.BatchNorm2d(filtres1),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
 
-            # Bloc 2 (64x64 -> 32x32)
-            nn.Conv2d(c1, c2, kernel_size=k, padding=p),
-            nn.BatchNorm2d(c2),
+            # Bloc 2
+            nn.Conv2d(filtres1, filtres2, kernel_size=taille_noyau, padding=padding),
+            nn.BatchNorm2d(filtres2),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
 
-            # Bloc 3 (32x32 -> 16x16)
-            nn.Conv2d(c2, c3, kernel_size=k, padding=p),
-            nn.BatchNorm2d(c3),
+            # Bloc 3
+            nn.Conv2d(filtres2, filtres3, kernel_size=taille_noyau, padding=padding),
+            nn.BatchNorm2d(filtres3),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
         )
 
-        self.classifier = nn.Sequential(
+        # Partie classification pour sortir le score de chaque classe
+        self.classifieur = nn.Sequential(
             nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(),
             nn.Dropout(0.3),
-            nn.Linear(c3, num_classes)
+            nn.Linear(filtres3, nb_classes)
         )
 
     def forward(self, x):
-        features = self.encoder(x)
-        out = self.classifier(features)
-        return out
+        features = self.convolutions(x)
+        sorties = self.classifieur(features)
+        return sorties
 
 
-# =====================================================================
-# 3. Chargement des données par dossier
-# =====================================================================
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+# Extensions d'images prises en compte
+EXTENSIONS_IMAGES = {".jpg", ".jpeg", ".png"}
 
-def load_image(path):
-    return Image.open(path).convert("RGB")
+def charger_image(chemin):
+    # Ouvre l'image et la convertit en RGB (pour éviter les erreurs d'images noir et blanc)
+    return Image.open(chemin).convert("RGB")
 
 
-def get_target_classes(classes_json_path):
-    """Lit classes.json et filtre sur les espèces réelles."""
-    with open(classes_json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)["classes"]
+def recup_classes(chemin_json):
+    # Lit le fichier classes.json et garde seulement les vraies espèces d'oiseaux
+    with open(chemin_json, "r", encoding="utf-8") as f:
+        classes = json.load(f)["classes"]
 
-    target = []
-    for c in data:
+    classes_propres = []
+    for c in classes:
         if c not in ("autre_oiseau", "rien", "incertain"):
-            target.append(c.strip().replace(" ", "_"))
-    return sorted(list(set(target)))
+            classes_propres.append(c.strip().replace(" ", "_"))
+    return sorted(list(set(classes_propres)))
 
 
-def load_dataset_from_folder(folder_path, target_classes):
-    """Charge les chemins et labels directement depuis un dossier."""
-    root = Path(folder_path)
-    paths, labels = [], []
-    class_to_idx = {name: idx for idx, name in enumerate(target_classes)}
+def lister_images(dossier, classes_cibles):
+    # Parcourt les sous-dossiers et renvoie les chemins des images et leurs labels (0, 1, 2...)
+    dossier_path = Path(dossier)
+    chemins, labels = [], []
+    classe_vers_id = {nom: i for i, nom in enumerate(classes_cibles)}
 
-    for class_name in target_classes:
-        class_dir = root / class_name
-        if not class_dir.is_dir():
+    for nom_classe in classes_cibles:
+        dossier_classe = dossier_path / nom_classe
+        if not dossier_classe.is_dir():
             continue
 
-        for file in sorted(class_dir.iterdir()):
-            if file.suffix.lower() in IMAGE_EXTENSIONS:
-                paths.append(file)
-                labels.append(class_to_idx[class_name])
+        for fichier in sorted(dossier_classe.iterdir()):
+            if fichier.suffix.lower() in EXTENSIONS_IMAGES:
+                chemins.append(fichier)
+                labels.append(classe_vers_id[nom_classe])
 
-    return paths, labels
+    return chemins, labels
 
 
+# Dataset PyTorch pour charger les images à la volée
 class OiseauxDataset(Dataset):
-    def __init__(self, paths, labels, transform=None):
-        self.paths = paths
+    def __init__(self, chemins, labels, transform=None):
+        self.chemins = chemins
         self.labels = labels
         self.transform = transform
 
     def __len__(self):
-        return len(self.paths)
+        return len(self.chemins)
 
-    def __getitem__(self, idx):
-        image = load_image(self.paths[idx])
+    def __getitem__(self, index):
+        image = charger_image(self.chemins[index])
         if self.transform:
             image = self.transform(image)
-        return image, self.labels[idx]
+        label = self.labels[index]
+        return image, label
 
 
-# =====================================================================
-# 4. Fonction d'entraînement (uniquement sur Train)
-# =====================================================================
-def train_model(model, train_loader, criterion, optimizer, num_epochs=15, device=device):
-    model.to(device)
-    print(f"\n--- Début de l'entraînement ({num_epochs} époques) ---")
+# Fonction d'entraînement du modèle
+def entrainer(modele, train_loader, criterion, optimizer, nb_epochs=15, device=appareil):
+    modele.to(device)
+    print(f"\n--- Début de l'entraînement ({nb_epochs} époques) ---")
 
-    train_losses = []
+    pertes_train = []
 
-    for epoch in range(1, num_epochs + 1):
-        start_time = time.time()
-        model.train()
-        running_train_loss = 0.0
+    for epoch in range(1, nb_epochs + 1):
+        temps_debut = time.time()
+        modele.train()
+        perte_totale = 0.0
 
-        for images, targets in train_loader:
+        for images, cibles in train_loader:
             images = images.to(device)
-            targets = targets.to(device)
+            cibles = cibles.to(device)
 
             optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, targets)
-            loss.backward()
+            predictions = modele(images)
+            perte = criterion(predictions, cibles)
+            perte.backward()
             optimizer.step()
 
-            running_train_loss += loss.item() * images.size(0)
+            perte_totale += perte.item() * images.size(0)
 
-        epoch_train_loss = running_train_loss / len(train_loader.dataset)
-        train_losses.append(epoch_train_loss)
-        elapsed = time.time() - start_time
+        perte_moyenne = perte_totale / len(train_loader.dataset)
+        pertes_train.append(perte_moyenne)
+        duree = time.time() - temps_debut
 
-        print(f"Epoch [{epoch:02d}/{num_epochs:02d}] - "
-              f"Train Loss: {epoch_train_loss:.4f} - Durée: {elapsed:.2f}s")
+        print(f"Époque [{epoch:02d}/{nb_epochs:02d}] - Perte train: {perte_moyenne:.4f} - Temps: {duree:.2f}s")
 
-    return model, train_losses
+    return modele, pertes_train
 
 
-# =====================================================================
-# 5. Exécution principale
-# =====================================================================
 if __name__ == '__main__':
-    data_cfg = CONFIG["data"]
-    train_cfg = CONFIG["training"]
-    out_cfg = CONFIG["output"]
+    data_cfg = config["data"]
+    train_cfg = config["training"]
+    out_cfg = config["output"]
 
-    # 1. Classes cibles
-    classes_cibles = get_target_classes(data_cfg["classes_json_path"])
-    print(f"Nombre de classes cibles : {len(classes_cibles)}")
+    # 1. On récupère les classes
+    classes_cibles = recup_classes(data_cfg["classes_json_path"])
+    print(f"Nombre d'espèces cibles : {len(classes_cibles)}")
 
-    # 2. Chargement du dossier physique Train uniquement
-    train_paths, train_labels = load_dataset_from_folder(data_cfg["train_dir"], classes_cibles)
-    print(f"Images chargées - Train : {len(train_paths)}")
+    # 2. On charge les images du dossier d'entraînement
+    chemins_train, labels_train = lister_images(data_cfg["train_dir"], classes_cibles)
+    print(f"Nombre d'images pour le train : {len(chemins_train)}")
 
-    # 3. Transformations
-    img_size = tuple(data_cfg.get("img_size", [128, 128]))
-    
+    # 3. Transformations appliquées aux images (redimensionnement et data augmentation basique)
+    taille_img = tuple(data_cfg.get("img_size", [128, 128]))
     transform_train = transforms.Compose([
-        transforms.Resize(img_size),
+        transforms.Resize(taille_img),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    train_dataset = OiseauxDataset(train_paths, train_labels, transform=transform_train)
+    dataset_train = OiseauxDataset(chemins_train, labels_train, transform=transform_train)
 
     batch_size = train_cfg.get("batch_size", 32)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True)
 
-    # 4. Modèle
-    model = SimpleCNN(num_classes=len(classes_cibles), model_cfg=CONFIG["model"])
-    print("\nModèle instancié :")
-    print(model)
+    # 4. Création du modèle
+    modele = SimpleCNN(nb_classes=len(classes_cibles), cfg_modele=config["model"])
+    print("\nArchitecture du modèle :")
+    print(modele)
 
+    # Fonction de perte pour la classification et optimiseur Adam
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=train_cfg.get("learning_rate", 0.001))
+    lr = train_cfg.get("learning_rate", 0.001)
+    optimizer = optim.Adam(modele.parameters(), lr=lr)
 
-    # 5. Entraînement
-    epochs = train_cfg.get("epochs", 15)
-    trained_model, train_losses = train_model(
-        model, train_loader, criterion, optimizer, num_epochs=epochs, device=device
+    # 5. Lancement de l'entraînement
+    nb_epochs = train_cfg.get("epochs", 15)
+    modele_entraine, historique_pertes = entrainer(
+        modele, train_loader, criterion, optimizer, nb_epochs=nb_epochs, device=appareil
     )
 
-    # 6. Sauvegarde des poids
-    weights_path = out_cfg.get("weights_path", "baseline_cnn.pth")
-    torch.save(trained_model.state_dict(), weights_path)
-    print(f"\nModèle entraîné sauvegardé dans '{weights_path}'.")
+    # 6. Sauvegarde des poids du modèle
+    fichier_poids = out_cfg.get("weights_path", "baseline_cnn.pth")
+    torch.save(modele_entraine.state_dict(), fichier_poids)
+    print(f"\nPoids du modèle enregistrés dans : {fichier_poids}")
 
-    # 7. Tracé de la courbe de perte d'entraînement
-    plot_path = out_cfg.get("loss_plot_path", "loss_baseline.png")
+    # 7. Affichage et sauvegarde de la courbe de perte
+    fichier_plot = out_cfg.get("loss_plot_path", "loss_baseline.png")
     plt.figure(figsize=(8, 5))
-    plt.plot(range(1, epochs + 1), train_losses, label="Train Loss", color="blue")
-    plt.xlabel("Époques")
-    plt.ylabel("Perte")
-    plt.title("Évolution de la perte d'entraînement (Train Loss)")
+    plt.plot(range(1, nb_epochs + 1), historique_pertes, label="Perte train", color="blue")
+    plt.xlabel("Époque")
+    plt.ylabel("Perte (CrossEntropy)")
+    plt.title("Courbe d'apprentissage - Baseline CNN")
     plt.legend()
     plt.grid(True)
-    plt.savefig(plot_path)
-    print(f"Graphique sauvegardé dans '{plot_path}'.")
+    plt.savefig(fichier_plot)
+    print(f"Graphique de perte enregistré dans : {fichier_plot}")

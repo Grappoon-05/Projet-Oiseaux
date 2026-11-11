@@ -1,122 +1,85 @@
-"""Teste le modèle YOLO (yolo11n.pt) sur une image ou un dossier d'images.
-Adapté de test_YOLO.py du projet Soteria.
-
-Exemples :
-    python3 test_yolo.py
-    python3 test_yolo.py mon_image.jpg
-    python3 test_yolo.py dataset_split/test
-"""
-
-from __future__ import annotations
-
 import argparse
-import json
 from pathlib import Path
-from typing import Any, cast
-from PIL import Image
 from ultralytics import YOLO
-from ultralytics.engine.results import Results
 
 from select_device import device_config
 
-IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-DEFAULT_MODEL = Path(__file__).resolve().parent / "yolo11n.pt"
-DEFAULT_TEST_DIR = Path("./dataset_split/test")
-DEFAULT_OUTPUT = Path("./runs/yolo_test")
+# Extensions acceptées
+EXTENSIONS_IMAGES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+MODELE_PAR_DEFAUT = Path(__file__).resolve().parent / "yolo11n.pt"
+DOSSIER_TEST_DEFAUT = Path("./dataset_split/test")
+DOSSIER_SORTIE_DEFAUT = Path("./runs/yolo_test")
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Teste le modèle YOLO sur une image ou un dossier d'images."
-    )
-    parser.add_argument(
-        "source",
-        type=Path,
-        nargs="?",
-        default=DEFAULT_TEST_DIR,
-        help="Image ou dossier à tester (défaut: ./dataset_split/test).",
-    )
-    parser.add_argument(
-        "--model",
-        type=Path,
-        default=DEFAULT_MODEL,
-        help="Chemin du modèle YOLO (défaut: ./yolo11n.pt).",
-    )
-    parser.add_argument(
-        "--confidence",
-        type=float,
-        default=0.25,
-        help="Seuil de confiance (défaut: 0.25).",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=DEFAULT_OUTPUT,
-        help="Dossier de sortie des images annotées (défaut: ./runs/yolo_test).",
-    )
+def options():
+    parser = argparse.ArgumentParser(description="Test rapide du modèle YOLO sur des images.")
+    parser.add_argument("source", type=Path, nargs="?", default=DOSSIER_TEST_DEFAUT, help="Image ou dossier à tester")
+    parser.add_argument("--model", type=Path, default=MODELE_PAR_DEFAUT, help="Fichier .pt du modèle")
+    parser.add_argument("--confidence", type=float, default=0.25, help="Seuil de confiance minimum")
+    parser.add_argument("--output", type=Path, default=DOSSIER_SORTIE_DEFAUT, help="Dossier où enregistrer les images avec boîtes")
     return parser.parse_args()
 
 
-def get_image_list(source: Path) -> list[Path]:
+# Récupère la liste des images à tester
+def recuperer_images(source):
     if source.is_file():
-        if source.suffix.lower() not in IMAGE_SUFFIXES:
-            raise ValueError(f"Format non supporté : {source.suffix}")
         return [source]
 
     if not source.is_dir():
-        raise FileNotFoundError(f"Source introuvable : {source}")
+        raise FileNotFoundError(f"Dossier ou image introuvable : {source}")
 
     images = [
         p for p in source.rglob("*")
-        if p.is_file() and p.suffix.lower() in IMAGE_SUFFIXES
+        if p.is_file() and p.suffix.lower() in EXTENSIONS_IMAGES
     ]
-    if not images:
-        raise FileNotFoundError(f"Aucune image trouvée dans : {source}")
     return sorted(images)
 
 
-def test_yolo(args: argparse.Namespace) -> None:
+# Teste YOLO sur les images et affiche les détections
+def tester_yolo(args):
     if not args.model.is_file():
-        raise FileNotFoundError(f"Modèle YOLO introuvable : {args.model}")
+        raise FileNotFoundError(f"Modèle introuvable : {args.model}")
 
-    sources = get_image_list(args.source)
-    device = str(device_config())
-    print(f"Chargement YOLO : {args.model} sur {device}")
-    model = YOLO(str(args.model))
+    images = recuperer_images(args.source)
+    appareil_str = str(device_config())
+    print(f"Chargement du modèle YOLO : {args.model}")
+    modele = YOLO(str(args.model))
 
     args.output.mkdir(parents=True, exist_ok=True)
-    print(f"Test sur {len(sources)} image(s) depuis {args.source}...\n")
+    print(f"Test lancé sur {len(images)} image(s)...\n")
 
-    nb_detected = 0
+    nb_trouves = 0
+    # On teste sur un échantillon de 20 images pour que ce soit rapide
+    echantillon = images[:20]
 
-    for idx, img_path in enumerate(sources[:30], start=1):  # Échantillon de test
-        results = model.predict(
+    for i, img_path in enumerate(echantillon, start=1):
+        resultats = modele.predict(
             source=str(img_path),
             conf=args.confidence,
-            classes=[14],  # 14 = bird
-            device=device,
+            classes=[14],  # classe 14 = oiseau
+            device=appareil_str,
             verbose=False,
             save=False,
         )
 
-        res = results[0]
-        has_bird = res.boxes is not None and len(res.boxes) > 0
-        if has_bird:
-            nb_detected += 1
+        res = resultats[0]
+        # On vérifie si une boîte a été trouvée
+        if res.boxes is not None and len(res.boxes) > 0:
+            nb_trouves += 1
             conf = float(res.boxes.conf.max())
-            print(f"[{idx:02d}] {img_path.name:30} -> OISEAU DÉTECTÉ (conf: {conf:.2f})")
-            # Sauvegarder l'image annotée
-            out_img = args.output / img_path.name
-            res.save(filename=str(out_img))
+            print(f"[{i:02d}] {img_path.name:30} -> OISEAU TROUVÉ (confiance: {conf:.2f})")
+            # On enregistre l'image annotée avec le cadre vert
+            chemin_sauvegarde = args.output / img_path.name
+            res.save(filename=str(chemin_sauvegarde))
         else:
-            print(f"[{idx:02d}] {img_path.name:30} -> Aucun oiseau")
+            print(f"[{i:02d}] {img_path.name:30} -> Rien détecté")
 
-    print("\n" + "=" * 50)
-    print(f"Test terminé sur l'échantillon.")
-    print(f"Oiseaux détectés : {nb_detected}/{min(30, len(sources))}")
-    print(f"Images annotées sauvegardées dans : {args.output.resolve()}")
-    print("=" * 50)
+    print("\n" + "=" * 45)
+    print("Test terminé !")
+    print(f"Oiseaux trouvés : {nb_trouves}/{len(echantillon)}")
+    print(f"Images avec cadres sauvegardées dans : {args.output.resolve()}")
+    print("=" * 45)
 
 
 if __name__ == "__main__":
-    test_yolo(parse_args())
+    tester_yolo(options())
