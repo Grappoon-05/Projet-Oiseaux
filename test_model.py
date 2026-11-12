@@ -97,6 +97,7 @@ print("\nRapport détaillé par espèce (Précision, Rappel, F1-Score) :\n")
 print(classification_report(
     toutes_les_cibles,
     toutes_les_predictions,
+    labels=list(range(len(classes_cibles))),
     target_names=classes_cibles,
     digits=3,
     zero_division=0
@@ -105,7 +106,7 @@ print(classification_report(
 # ---------------------------------------------------------------------
 # 5. Matrice de Confusion
 # ---------------------------------------------------------------------
-cm = confusion_matrix(toutes_les_cibles, toutes_les_predictions)
+cm = confusion_matrix(toutes_les_cibles, toutes_les_predictions, labels=list(range(len(classes_cibles))))
 
 plt.figure(figsize=(10, 8))
 plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
