@@ -1,0 +1,41 @@
+The device being used is the mps, so the calculations will be sent to it
+The device being used is the mps, so the calculations will be sent to it
+
+Évaluation complète du modèle Baseline CNN sur : '/Users/grappoon/Desktop/IUT/L2/S3/R3.14 - IA/projex/hackaton_split/test'
+Total images : 128 | Nombre d'espèces : 16
+Poids chargés depuis 'baseline_hackaton.pth'
+
+============================================================
+RAPPORT OFFICIEL DES PERFORMANCES - BASELINE CNN (ÉTAPE 1)
+============================================================
+Perte moyenne (Test Loss)   : 2.6988
+Précision globale (Accuracy) : 17.97%
+============================================================
+
+Rapport détaillé par espèce (Précision, Rappel, F1-Score) :
+
+                       precision    recall  f1-score   support
+
+  Carduelis_carduelis      0.500     0.500     0.500         8
+      Chloris_chloris      0.125     0.375     0.188         8
+     Columba_palumbus      0.000     0.000     0.000         8
+  Cyanistes_caeruleus      0.000     0.000     0.000         8
+   Erithacus_rubecula      0.000     0.000     0.000         8
+    Fringilla_coelebs      0.308     0.500     0.381         8
+  Garrulus_glandarius      0.000     0.000     0.000         8
+          Parus_major      0.182     0.250     0.211         8
+    Passer_domesticus      0.333     0.125     0.182         8
+            Pica_pica      0.000     0.000     0.000         8
+      Serinus_serinus      0.400     0.250     0.308         8
+Streptopelia_decaocto      0.200     0.125     0.154         8
+     Sturnus_vulgaris      0.077     0.125     0.095         8
+   Sylvia_atricapilla      0.500     0.125     0.200         8
+        Turdus_merula      0.333     0.375     0.353         8
+          Upupa_epops      0.250     0.125     0.167         8
+
+             accuracy                          0.180       128
+            macro avg      0.201     0.180     0.171       128
+         weighted avg      0.201     0.180     0.171       128
+
+Matrice de confusion sauvegardée dans : 'dossier_rapport/matrice_confusion_hackaton_Etape1_Baseline_hackaton.png'
+Exemples de prédictions enregistrés dans : 'test_predictions.png'

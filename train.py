@@ -26,7 +26,7 @@ def charger_classes(fichier_json="classes.json"):
     return sorted(list(set(classes)))
 
 
-# Dataset pour charger les images depuis les dossiers d'espèces
+# Dataset pour charger les images depuis une arborescence de dossiers de classes
 class BirdDataset(Dataset):
     def __init__(self, root, classes, transform=None):
         self.root = Path(root)
@@ -35,14 +35,29 @@ class BirdDataset(Dataset):
         self.labels = []
         classe_vers_index = {nom: i for i, nom in enumerate(classes)}
 
+        # Cas 1 : root pointe directement vers un dossier contenant des sous-dossiers de classes
+        # ou un dossier qui contient un sous-dossier train/ contenant les classes
+        dossier_source = self.root
+        if (self.root / "train").is_dir():
+            dossier_source = self.root / "train"
+
+        # Recherche récursive de chaque classe dans l'arborescence fournie
         for nom in classes:
-            dossier_classe = self.root / nom
-            if not dossier_classe.is_dir():
-                continue
-            for fichier in sorted(dossier_classe.iterdir()):
-                if fichier.suffix.lower() in IMAGE_EXTENSIONS:
-                    self.paths.append(fichier)
-                    self.labels.append(classe_vers_index[nom])
+            # Recherche directe sous le dossier source
+            dossier_classe = dossier_source / nom
+            if dossier_classe.is_dir():
+                for fichier in sorted(dossier_classe.iterdir()):
+                    if fichier.suffix.lower() in IMAGE_EXTENSIONS:
+                        self.paths.append(fichier)
+                        self.labels.append(classe_vers_index[nom])
+            else:
+                # Recherche récursive au cas où les classes sont dans des sous-dossiers (ex: hackaton_split/train/)
+                for sous_dossier in dossier_source.rglob(nom):
+                    if sous_dossier.is_dir():
+                        for fichier in sorted(sous_dossier.iterdir()):
+                            if fichier.suffix.lower() in IMAGE_EXTENSIONS:
+                                self.paths.append(fichier)
+                                self.labels.append(classe_vers_index[nom])
 
     def __len__(self):
         return len(self.paths)
@@ -99,10 +114,13 @@ def train(data_root, output_dir, epochs=10, batch_size=32, lr=0.0005):
         perte_moyenne = perte_cumulee / len(dataset)
         print(f"Époque [{epoch:02d}/{epochs:02d}] - Perte: {perte_moyenne:.4f}")
 
-    # Sauvegarde des poids
-    chemin_modele = output_dir / "model_weights.pth"
+    # Sauvegarde des poids dans le dossier de sortie demandé
+    chemin_modele = output_dir / "final_model.pth"
     torch.save(modele.state_dict(), chemin_modele)
-    print(f"Modèle sauvegardé dans : {chemin_modele}")
+    
+    # Copie également sous model_weights.pth pour compatibilité
+    torch.save(modele.state_dict(), output_dir / "model_weights.pth")
+    print(f"Modèle sauvegardé avec succès dans : {chemin_modele}")
 
 
 if __name__ == "__main__":

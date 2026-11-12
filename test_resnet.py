@@ -110,9 +110,11 @@ print(classification_report(
 # ---------------------------------------------------------------------
 cm = confusion_matrix(toutes_les_cibles, toutes_les_predictions, labels=list(range(len(classes_cibles))))
 
+chemin_cm = out_cfg.get("confusion_matrix_path", "matrice_confusion_resnet.png")
+
 plt.figure(figsize=(10, 8))
 plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Greens)
-plt.title("Matrice de Confusion — ResNet18", fontsize=12)
+plt.title(f"Matrice de Confusion — ResNet18\n({Path(dossier_test).parent.name} - {Path(dossier_test).name})", fontsize=11)
 plt.colorbar()
 tick_marks = np.arange(len(classes_cibles))
 plt.xticks(tick_marks, classes_cibles, rotation=90, fontsize=8)
@@ -120,8 +122,8 @@ plt.yticks(tick_marks, classes_cibles, fontsize=8)
 plt.ylabel("Vraie espèce", fontsize=10)
 plt.xlabel("Espèce prédite", fontsize=10)
 plt.tight_layout()
-plt.savefig("matrice_confusion_resnet.png")
-print("Matrice de confusion sauvegardée dans : 'matrice_confusion_resnet.png'")
+plt.savefig(chemin_cm)
+print(f"Matrice de confusion sauvegardée dans : '{chemin_cm}'")
 
 # ---------------------------------------------------------------------
 # 6. Visualisation d'exemples de prédictions

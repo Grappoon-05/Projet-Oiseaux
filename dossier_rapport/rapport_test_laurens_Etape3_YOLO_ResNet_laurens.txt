@@ -1,0 +1,42 @@
+The device being used is the mps, so the calculations will be sent to it
+The device being used is the mps, so the calculations will be sent to it
+The device being used is the mps, so the calculations will be sent to it
+
+Évaluation complète de ResNet18 sur : '/Users/grappoon/Desktop/IUT/L2/S3/R3.14 - IA/projex/laurens_split/test'
+Total images : 192 | Nombre d'espèces : 16
+Poids chargés depuis 'resnet18_yolo_laurens.pth'
+
+============================================================
+RAPPORT OFFICIEL DES PERFORMANCES - RESNET18 (ÉTAPE 2 / ÉTAPE 3)
+============================================================
+Perte moyenne (Test Loss)   : 2.5647
+Précision globale (Accuracy) : 33.33%
+============================================================
+
+Rapport détaillé par espèce (Précision, Rappel, F1-Score) :
+
+                       precision    recall  f1-score   support
+
+  Carduelis_carduelis      0.000     0.000     0.000         0
+      Chloris_chloris      0.000     0.000     0.000         0
+     Columba_palumbus      0.000     0.000     0.000         0
+  Cyanistes_caeruleus      0.000     0.000     0.000         0
+   Erithacus_rubecula      0.025     1.000     0.050         3
+    Fringilla_coelebs      0.836     0.345     0.488       177
+  Garrulus_glandarius      0.000     0.000     0.000         0
+          Parus_major      0.000     0.000     0.000         0
+    Passer_domesticus      0.000     0.000     0.000         0
+            Pica_pica      0.000     0.000     0.000         0
+      Serinus_serinus      0.000     0.000     0.000         0
+Streptopelia_decaocto      0.000     0.000     0.000        12
+     Sturnus_vulgaris      0.000     0.000     0.000         0
+   Sylvia_atricapilla      0.000     0.000     0.000         0
+        Turdus_merula      0.000     0.000     0.000         0
+          Upupa_epops      0.000     0.000     0.000         0
+
+             accuracy                          0.333       192
+            macro avg      0.054     0.084     0.034       192
+         weighted avg      0.771     0.333     0.451       192
+
+Matrice de confusion sauvegardée dans : 'dossier_rapport/matrice_confusion_laurens_Etape3_YOLO_ResNet_laurens.png'
+Exemples de prédictions enregistrés dans : 'test_predictions_resnet.png'

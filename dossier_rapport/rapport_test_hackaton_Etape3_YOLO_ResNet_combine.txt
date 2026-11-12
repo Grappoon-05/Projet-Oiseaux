@@ -1,0 +1,42 @@
+The device being used is the mps, so the calculations will be sent to it
+The device being used is the mps, so the calculations will be sent to it
+The device being used is the mps, so the calculations will be sent to it
+
+Évaluation complète de ResNet18 sur : '/Users/grappoon/Desktop/IUT/L2/S3/R3.14 - IA/projex/hackaton_split/test'
+Total images : 128 | Nombre d'espèces : 16
+Poids chargés depuis 'resnet18_yolo_combine.pth'
+
+============================================================
+RAPPORT OFFICIEL DES PERFORMANCES - RESNET18 (ÉTAPE 2 / ÉTAPE 3)
+============================================================
+Perte moyenne (Test Loss)   : 4.3220
+Précision globale (Accuracy) : 27.34%
+============================================================
+
+Rapport détaillé par espèce (Précision, Rappel, F1-Score) :
+
+                       precision    recall  f1-score   support
+
+  Carduelis_carduelis      0.143     0.125     0.133         8
+      Chloris_chloris      0.105     0.250     0.148         8
+     Columba_palumbus      0.182     0.250     0.211         8
+  Cyanistes_caeruleus      0.500     0.125     0.200         8
+   Erithacus_rubecula      0.444     0.500     0.471         8
+    Fringilla_coelebs      0.200     0.250     0.222         8
+  Garrulus_glandarius      0.214     0.375     0.273         8
+          Parus_major      0.167     0.125     0.143         8
+    Passer_domesticus      0.286     0.250     0.267         8
+            Pica_pica      0.444     0.500     0.471         8
+      Serinus_serinus      0.222     0.250     0.235         8
+Streptopelia_decaocto      0.250     0.125     0.167         8
+     Sturnus_vulgaris      0.444     0.500     0.471         8
+   Sylvia_atricapilla      0.200     0.125     0.154         8
+        Turdus_merula      0.750     0.375     0.500         8
+          Upupa_epops      0.667     0.250     0.364         8
+
+             accuracy                          0.273       128
+            macro avg      0.326     0.273     0.277       128
+         weighted avg      0.326     0.273     0.277       128
+
+Matrice de confusion sauvegardée dans : 'dossier_rapport/matrice_confusion_hackaton_Etape3_YOLO_ResNet_combine.png'
+Exemples de prédictions enregistrés dans : 'test_predictions_resnet.png'
