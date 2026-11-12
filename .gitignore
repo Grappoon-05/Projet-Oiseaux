@@ -1,3 +1,18 @@
+# Fichiers et dossiers exclus du suivi Git pour des raisons de confidentialité et de poids
+# (Règles RGPD du sujet : aucune photo de piège photo ni gros fichier temporaire ne doit partir sur GitHub)
+
+# Données brutes et images
 Data_Hackaton/
 Oiseaux_Laurens/
-*.pt
+dataset_split/
+dataset_cropped/
+runs/
+
+# Fichiers lourds temporaires et caches
+*.png
+__pycache__/
+.idea/
+.DS_Store
+
+# Poids YOLO pré-entraînés COCO (modèle externe téléchargé)
+yolo*.pt
