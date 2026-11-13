@@ -37,15 +37,15 @@ def charger_vocabulaire(json_path=CLASSES_JSON_PATH):
 
 
 def trouver_fichier_poids():
-    """Localise automatiquement les meilleurs poids du modèle pour le rendu."""
+    """Localise automatiquement les poids du modèle pour le rendu dans le dépôt."""
     dossier_actuel = Path(__file__).resolve().parent
     candidats = [
         dossier_actuel / "final_model.pth",
-        dossier_actuel / "resnet18_yolo_combine.pth",
-        dossier_actuel / "resnet18_combine.pth",
+        dossier_actuel / "model_weights.pth",
         dossier_actuel / "output" / "final_model.pth",
         dossier_actuel / "output" / "model_weights.pth",
-        Path("/Users/grappoon/Desktop/IUT/L2/S3/R3.14 - IA/projex/modeles_entraines/Etape3_YOLO_ResNet_combine_ResNet18.pth"),
+        dossier_actuel / "resnet18_yolo_combine.pth",
+        dossier_actuel / "resnet18_combine.pth",
     ]
     for c in candidats:
         if c.exists():
