@@ -12,7 +12,7 @@ git clone https://github.com/Grappoon-05/Projet-Oiseaux.git
 cd Projet-Oiseaux
 
 # Installer les dépendances
-pip install torch torchvision ultralytics scikit-learn pillow matplotlib pandas
+python -m pip install -r requirements.txt
 ```
 
 ---
