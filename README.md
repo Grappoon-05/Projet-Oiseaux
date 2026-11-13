@@ -17,7 +17,7 @@ pip install torch torchvision ultralytics scikit-learn pillow matplotlib pandas
 
 ---
 
-## 2. Commandes Officielles du Sujet (Annexe A)
+## 2. Commandes
 
 ### 2.1. Entraînement
 Pour entraîner le modèle sur un jeu de données (les images organisées en sous-dossiers par classe) :
@@ -30,7 +30,7 @@ python train.py <racine_des_donnees> <dossier_de_sortie>
 python train.py ./dataset_split/train ./output
 ```
 
-### 2.2. Inférence (Prédiction automatique sans interaction)
+### 2.2. Inférence
 Pour lancer la prédiction sur un dossier d'images brutes et générer le fichier `predictions.csv` :
 
 ```bash
@@ -57,8 +57,8 @@ Le périmètre d'identification est déclaré dans `classes.json` avec les noms 
 
 ## 4. Organisation du Projet
 
-- `train.py` : Script officiel d'entraînement (Annexe A).
-- `predict.py` : Script officiel d'inférence autonome produisant `predictions.csv` (Annexe A).
+- `train.py` : Script officiel d'entraînement.
+- `predict.py` : Script officiel d'inférence autonome produisant `predictions.csv`.
 - `final_model.pth` : Poids du modèle final entraîné à inclure dans le rendu.
 - `model.py` : Définition de l'architecture ResNet18 avec tête adaptée.
 - `lancer_experiences_globales.py` : Exécute les 9 configurations expérimentales (Baseline CNN, ResNet18, YOLO Crop x 3 sources de données).
