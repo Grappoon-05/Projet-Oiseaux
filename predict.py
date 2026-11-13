@@ -79,10 +79,10 @@ def extraire_date_exif(chemin_img):
     return None
 
 
-def attribuer_sequences(chemins_images, seuil_secondes=60.0):
+def attribuer_sequences(chemins_images, seuil_secondes=40.0):
     """
     Rattache chaque image à un passage (Étape 5 du sujet).
-    Si l'écart temporel EXIF entre 2 images consécutives est <= 60s,
+    Si l'écart temporel EXIF entre 2 images consécutives est <= 40s,
     elles appartiennent à la même séquence (même visite d'oiseau).
     """
     if not chemins_images:
